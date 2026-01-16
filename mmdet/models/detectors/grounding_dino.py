@@ -1086,17 +1086,60 @@ class GroundingDINO(DINO):
                 query_masks = []
                 cross_attention_input = None
                         
+                # if not self.use_p4_input:
+                #     for i in range(len(decoder_inputs_dict['memory'])):
+                #         p5_feature_map = decoder_inputs_dict['memory'][i][decoder_inputs_dict['level_start_index'][-2]: decoder_inputs_dict['level_start_index'][-1]]
+                #         H, W = int(decoder_inputs_dict['spatial_shapes'][-2][0].data), int(decoder_inputs_dict['spatial_shapes'][-2][1].data)
+                #         p5_feature_map = p5_feature_map.reshape(H, W, decoder_inputs_dict['memory'].shape[-1]).permute(2, 0, 1)
+                #         p5_feature_map = p5_feature_map[:, :int(torch.round(H * decoder_inputs_dict['valid_ratios'][i, -2, 1])), :int(torch.round(W * decoder_inputs_dict['valid_ratios'][i, -2, 0]))]
+                #         p5_feature_map = F.interpolate(p5_feature_map[None], size=(self.feature_map_size, self.feature_map_size), mode='bilinear')[0]
+                #         # if flips[i]:
+                #         #     p5_feature_map = p5_feature_map.flip(-1)
+                #         p5_feature_map = self.connector([p5_feature_map.permute(1, 2, 0)]).flatten(0, 1)
+                #         p5_feature_map = p5_feature_map + self.connector.forward_pos(gen_sineembed_for_position_2d(self.grid_box.to(p5_feature_map.device)))
+                #         image_queries.append(p5_feature_map.half())
+                #         query_masks.append(torch.ones((len(image_queries[-1])), device=p5_feature_map.device, dtype=torch.bool))
                 if not self.use_p4_input:
+                    # 获取特征层级的总数
+                    num_levels = len(decoder_inputs_dict['level_start_index'])
+                    
                     for i in range(len(decoder_inputs_dict['memory'])):
-                        p5_feature_map = decoder_inputs_dict['memory'][i][decoder_inputs_dict['level_start_index'][-2]: decoder_inputs_dict['level_start_index'][-1]]
-                        H, W = int(decoder_inputs_dict['spatial_shapes'][-2][0].data), int(decoder_inputs_dict['spatial_shapes'][-2][1].data)
+                        # --- 核心修复逻辑：判断层级数量 ---
+                        if num_levels >= 2:
+                            # 原始多尺度逻辑：取倒数第二层 (P5)
+                            level_idx = -2
+                            start_idx = decoder_inputs_dict['level_start_index'][level_idx]
+                            end_idx = decoder_inputs_dict['level_start_index'][level_idx + 1]
+                            p5_feature_map = decoder_inputs_dict['memory'][i][start_idx:end_idx]
+                            
+                            H, W = int(decoder_inputs_dict['spatial_shapes'][level_idx][0].data), \
+                                   int(decoder_inputs_dict['spatial_shapes'][level_idx][1].data)
+                            
+                            valid_ratio_h = decoder_inputs_dict['valid_ratios'][i, level_idx, 1]
+                            valid_ratio_w = decoder_inputs_dict['valid_ratios'][i, level_idx, 0]
+                        else:
+                            # 单尺度逻辑 (OWLv2 专用)：直接取唯一的这一层
+                            level_idx = 0
+                            p5_feature_map = decoder_inputs_dict['memory'][i]
+                            
+                            H, W = int(decoder_inputs_dict['spatial_shapes'][level_idx][0].data), \
+                                   int(decoder_inputs_dict['spatial_shapes'][level_idx][1].data)
+                            
+                            valid_ratio_h = decoder_inputs_dict['valid_ratios'][i, level_idx, 1]
+                            valid_ratio_w = decoder_inputs_dict['valid_ratios'][i, level_idx, 0]
+                        # -------------------------------
+
                         p5_feature_map = p5_feature_map.reshape(H, W, decoder_inputs_dict['memory'].shape[-1]).permute(2, 0, 1)
-                        p5_feature_map = p5_feature_map[:, :int(torch.round(H * decoder_inputs_dict['valid_ratios'][i, -2, 1])), :int(torch.round(W * decoder_inputs_dict['valid_ratios'][i, -2, 0]))]
+                        
+                        # 使用动态获取的 valid_ratio
+                        p5_feature_map = p5_feature_map[:, :int(torch.round(H * valid_ratio_h)), :int(torch.round(W * valid_ratio_w))]
+                        
                         p5_feature_map = F.interpolate(p5_feature_map[None], size=(self.feature_map_size, self.feature_map_size), mode='bilinear')[0]
-                        # if flips[i]:
-                        #     p5_feature_map = p5_feature_map.flip(-1)
+                        
+                        # 后续 Connector 逻辑保持不变
                         p5_feature_map = self.connector([p5_feature_map.permute(1, 2, 0)]).flatten(0, 1)
                         p5_feature_map = p5_feature_map + self.connector.forward_pos(gen_sineembed_for_position_2d(self.grid_box.to(p5_feature_map.device)))
+                        
                         image_queries.append(p5_feature_map.half())
                         query_masks.append(torch.ones((len(image_queries[-1])), device=p5_feature_map.device, dtype=torch.bool))
 
