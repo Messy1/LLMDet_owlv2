@@ -1,7 +1,8 @@
 _base_ = 'grounding_dino_owlv2.py'
 
 # ================= 0. 变量定义 (必须定义，用于 Pipeline) =================
-lang_model_name = '../huggingface/bert-base-uncased/'
+owlv2_model_name = '/home/chenguangyao/wzh/models/owlv2-base-patch16-ensemble'
+lang_model_name = owlv2_model_name
 # 指向你的 LLM 路径，用于加载 Tokenizer
 lmm_path = '../huggingface/my_llava-onevision-qwen2-0.5b-ov-2/' 
 lmm_max_token_length = 1200
@@ -22,7 +23,7 @@ train_pipeline = [
         lmm_max_token_length=lmm_max_token_length,
         num_region_caption=num_region_caption,
         num_sample_negative=85,
-        max_tokens=256),
+        max_tokens=16),
     # [关键补丁 2] 将 conversations 字段打包进 DataSample
     dict(
         type='PackDetInputs',

@@ -584,8 +584,10 @@ class GroundingDINO(DINO):
             # in Grounding DINO will not.
             tokenized = self.language_model.tokenizer(
                 [caption_string],
+                max_length=self.language_model.max_tokens,
                 padding='max_length'
                 if self.language_model.pad_to_max else 'longest',
+                truncation=True,
                 return_tensors='pt')
             entities = original_caption
         else:
@@ -597,8 +599,10 @@ class GroundingDINO(DINO):
             # in Grounding DINO will not.
             tokenized = self.language_model.tokenizer(
                 [original_caption],
+                max_length=self.language_model.max_tokens,
                 padding='max_length'
                 if self.language_model.pad_to_max else 'longest',
+                truncation=True,
                 return_tensors='pt')
             tokens_positive, noun_phrases = run_ner(original_caption)
             entities = noun_phrases
@@ -643,8 +647,10 @@ class GroundingDINO(DINO):
                 tokens_positive, entities = get_rec_phrase(original_caption)
                 tokenized = self.language_model.tokenizer(
                     [original_caption],
+                    max_length=self.language_model.max_tokens,
                     padding='max_length'
                     if self.language_model.pad_to_max else 'longest',
+                    truncation=True,
                     return_tensors='pt')
                 positive_map_label_to_token, positive_map = self.get_positive_map(
                     tokenized, tokens_positive)
@@ -655,8 +661,10 @@ class GroundingDINO(DINO):
                     original_caption = original_caption + self._special_tokens
                 tokenized = self.language_model.tokenizer(
                     [original_caption],
+                    max_length=self.language_model.max_tokens,
                     padding='max_length'
                     if self.language_model.pad_to_max else 'longest',
+                    truncation=True,
                     return_tensors='pt')
                 positive_map_label_to_token, positive_map = \
                     self.get_positive_map(tokenized, tokens_positive)
@@ -713,8 +721,11 @@ class GroundingDINO(DINO):
             else:
                 caption_string, tokens_positive = self.to_plain_text_prompts(
                     original_caption_chunked[i])
-            tokenized = self.language_model.tokenizer([caption_string],
-                                                      return_tensors='pt')
+            tokenized = self.language_model.tokenizer(
+                [caption_string],
+                max_length=self.language_model.max_tokens,
+                truncation=True,
+                return_tensors='pt')
             if tokenized.input_ids.shape[1] > self.language_model.max_tokens:
                 warnings.warn('Inputting a text that is too long will result '
                               'in poor prediction performance. '
@@ -871,8 +882,10 @@ class GroundingDINO(DINO):
                     tokens_positive, text_prompts, gt_labels):
                 tokenized = self.language_model.tokenizer(
                     [text_prompt],
+                    max_length=self.language_model.max_tokens,
                     padding='max_length'
                     if self.language_model.pad_to_max else 'longest',
+                    truncation=True,
                     return_tensors='pt')
                 new_tokens_positive = [
                     token_positive[label.item()] for label in gt_label

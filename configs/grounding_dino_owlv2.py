@@ -1,5 +1,7 @@
 _base_ = 'grounding_dino_swin_t.py'
 
+owlv2_model_name = '/home/chenguangyao/wzh/models/owlv2-base-patch16-ensemble'
+
 # ================= 1. 显式定义 Pipeline (确保 CLIP/OWLv2 兼容) =================
 train_pipeline = [
     dict(type='LoadImageFromFile'),
@@ -39,8 +41,18 @@ model = dict(
     backbone=dict(
         _delete_=True, # 删除 Swin 配置
         type='OWLv2Backbone',
-        model_name='/home/chenguangyao/wzh/models/owlv2-base-patch16-ensemble',
+        model_name=owlv2_model_name,
         freeze=True
+    ),
+
+    # ================= 4.1 文本编码器替换 (OWLv2 Text) =================
+    language_model=dict(
+        _delete_=True,
+        type='Owlv2TextModel',
+        name=owlv2_model_name,
+        max_tokens=16,
+        pad_to_max=True,
+        use_fast=True,
     ),
 
     # ================= 5. Neck 调整 (单尺度输入输出) =================
@@ -69,6 +81,7 @@ model = dict(
     # 移除 bbox_head 中的 num_query 错误
     bbox_head=dict(
         # 继承 _base_ 中的 num_classes=256 等参数，不再额外添加报错参数
+        contrastive_cfg=dict(max_text_len=16),
     ),
 )
 
