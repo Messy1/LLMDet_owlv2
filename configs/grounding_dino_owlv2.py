@@ -86,6 +86,19 @@ model = dict(
 )
 
 # 确保 Dataloader 使用正确的 Pipeline
-train_dataloader = dict(dataset=dict(pipeline=train_pipeline))
+# train_dataloader = dict(dataset=dict(pipeline=train_pipeline))
+# 这样修改既能解决 ConcatDataset 的报错，又能满足“快速试试”的要求
+train_dataloader = dict(
+    batch_size=2, # 每张卡 2 个样本，8 张卡就是 16
+    num_workers=4,
+    dataset=dict(
+        _delete_=True, # 彻底删除基类的 ConcatDataset 结构
+        type='ODVGDataset', # 显式指定数据集类型
+        data_root='../grounding_data/coco/', # 数据集根目录
+        ann_file='annotations/instances_train2017_vg_merged6.jsonl', # 使用合并后的注释文件
+        data_prefix=dict(img='train2017'),
+        pipeline=train_pipeline, # 使用适配 OWLv2 的 960x960 pipeline
+        return_classes=True,
+        actual_dataset_mode='OD'))
 val_dataloader = dict(dataset=dict(pipeline=test_pipeline))
 test_dataloader = val_dataloader
