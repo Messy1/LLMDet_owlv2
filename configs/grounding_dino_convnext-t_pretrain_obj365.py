@@ -26,6 +26,7 @@ model = dict(
     ),
     # 保持 Transformer Encoder (Feature Enhancer) 设置不变
     # 它将加载缝合后的旧权重，开始适应新的卷积特征
+    test_cfg=dict(max_per_img=300, chunked_size=40,)
 )
 
 # -----------------------------------------------------------------------------
@@ -87,10 +88,45 @@ param_scheduler = [
 # -----------------------------------------------------------------------------
 # 5. 其他运行设置 (Runtime)
 # -----------------------------------------------------------------------------
+test_pipeline = [
+    dict(
+        type='LoadImageFromFile', backend_args=None,
+        imdecode_backend='pillow'),
+    dict(
+        type='FixScaleResize',
+        scale=(800, 1333),
+        keep_ratio=True,
+        backend='pillow'),
+    dict(type='LoadAnnotations', with_bbox=True),
+    dict(
+        type='PackDetInputs',
+        meta_keys=('img_id', 'img_path', 'ori_shape', 'img_shape',
+                   'scale_factor', 'text', 'custom_entities',
+                   'tokens_positive'))
+]
+
 train_dataloader = dict(
     batch_size=6,  # 每张卡 4 个样本
     num_workers=12
 )
+
+dataset_type = 'LVISV1Dataset'
+data_root = '../grounding_data/coco/'
+
+test_dataloader = dict(
+    dataset=dict(
+        data_root=data_root,
+        type=dataset_type,
+        ann_file='annotations/lvis_v1_minival_inserted_image_name.json',
+        data_prefix=dict(img=''),
+        pipeline=test_pipeline,
+        return_classes=True))
+
+test_evaluator = dict(
+    _delete_=True,
+    type='LVISFixedAPMetric',
+    ann_file=data_root +
+    'annotations/lvis_v1_minival_inserted_image_name.json')
 
 # 告诉 MMEngine 基于当前的 BS=32 自动缩放（如果以后你改变了每张卡的 BS）
 auto_scale_lr = dict(base_batch_size=24)
