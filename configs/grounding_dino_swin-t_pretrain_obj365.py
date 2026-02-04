@@ -2,7 +2,7 @@ _base_ = [
     '_base_/datasets/coco_detection.py',
     '_base_/schedules/schedule_1x.py', '_base_/default_runtime.py'
 ]
-pretrained = 'https://github.com/SwinTransformer/storage/releases/download/v1.0.0/swin_tiny_patch4_window7_224.pth'  # noqa
+pretrained = '/home/chenguangyao/wzh/workspace/LLMDetProj/huggingface/swin_tiny_patch4_window7_224/swin_tiny_patch4_window7_224.pth'  # noqa
 lang_model_name = '../huggingface/bert-base-uncased/'
 
 model = dict(
@@ -200,7 +200,7 @@ coco_od_dataset = dict(
 train_dataloader = dict(
     _delete_=True,
     batch_size=4,
-    num_workers=4,
+    num_workers=8,
     persistent_workers=True,
     sampler=dict(type='DefaultSampler', shuffle=True),
     batch_sampler=dict(type='AspectRatioBatchSampler'),
@@ -213,7 +213,7 @@ test_dataloader = val_dataloader
 optim_wrapper = dict(
     _delete_=True,
     type='OptimWrapper',
-    optimizer=dict(type='AdamW', lr=0.0004,
+    optimizer=dict(type='AdamW', lr=0.00015,
                    weight_decay=0.0001),  # bs=16 0.0001
     clip_grad=dict(max_norm=0.1, norm_type=2),
     paramwise_cfg=dict(
@@ -242,6 +242,21 @@ train_cfg = dict(
 # NOTE: `auto_scale_lr` is for automatically scaling LR,
 # USER SHOULD NOT CHANGE ITS VALUES.
 # base_batch_size = (16 GPUs) x (2 samples per GPU)
-auto_scale_lr = dict(base_batch_size=64)
+auto_scale_lr = dict(base_batch_size=24)
 
-default_hooks = dict(visualization=dict(type='GroundingVisualizationHook'))
+default_hooks = dict(
+    checkpoint=dict(
+        type='CheckpointHook', 
+        interval=500,    # 每 2000 次迭代存一次，不再是 25 小时存一次了
+        by_epoch=False,   # 必须显式设为 False，interval 才会按 Iter 计算
+        max_keep_ckpts=3, # 建议只保留最近 3 个，Objects365 的 checkpoint 很大
+        save_last=True    # 始终保留最新的那个，方便 --resume
+    ),
+    visualization=dict(type='GroundingVisualizationHook'))
+
+env_cfg = dict(
+    dist_cfg=dict(
+        backend='nccl', 
+        timeout=28800 # 8 Hours
+    )
+)

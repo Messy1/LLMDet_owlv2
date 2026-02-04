@@ -1,5 +1,9 @@
 _base_ = 'grounding_dino_swin-t_pretrain_obj365.py'
 
+load_from = None
+pretrained = '/home/chenguangyao/wzh/workspace/LLMDetProj/huggingface/convnext-v2/convnext-v2-tiny_3rdparty-fcmae_in1k_20230104-80513adc.pth'
+
+randomness=dict(seed=624982218)
 # -----------------------------------------------------------------------------
 # 1. 模型架构修改 (Model Architecture)
 # -----------------------------------------------------------------------------
@@ -13,8 +17,7 @@ model = dict(
         use_grn=True,
         layer_scale_init_value=0.,
         drop_path_rate=0.2,
-        # 设为 None，因为所有权重都从底部的 load_from 中一次性加载
-        init_cfg=None
+        init_cfg=dict(type='Pretrained', checkpoint=pretrained)
     ),
     # 确保 Neck (ChannelMapper) 接收正确的通道数
     neck=dict(
@@ -30,43 +33,22 @@ model = dict(
 )
 
 # -----------------------------------------------------------------------------
-# 2. 权重加载 (Weight Loading)
-# -----------------------------------------------------------------------------
-# 指向你缝合好的“终极版”权重文件
-load_from = '/home/chenguangyao/wzh/workspace/LLMDetProj/huggingface/mmgdino_convnextv2_tiny.pth'
-
-# -----------------------------------------------------------------------------
 # 3. 训练策略与学习率 (Training Strategy & LR)
 # -----------------------------------------------------------------------------
 # 线性调整说明：
 # 原始参考：BS=128, LR=0.0001
 # 你的环境：BS=32 (8卡 x 4bs), 比例为 0.25 -> 基础 LR 应为 0.000025
-# 但由于 Neck 和 Encoder 需要较多磨合，我们适当微调
 optim_wrapper = dict(
     _delete_=True,
     type='OptimWrapper',
-    optimizer=dict(
-        type='AdamW', 
-        lr=0.000028125,  # 针对 6 卡 BS=36 线性缩放后的学习率
-        weight_decay=0.0001
-    ),
+    optimizer=dict(type='AdamW', lr=0.00015,
+                   weight_decay=0.0001),  # bs=16 0.0001
     clip_grad=dict(max_norm=0.1, norm_type=2),
     paramwise_cfg=dict(
         custom_keys={
-            # 1. 冻结 BERT 语言模型 (lr_mult=0.0)，防止视觉端噪声污染成熟的语言表征
-            'language_model': dict(lr_mult=0.0),
-            
-            # 2. 视觉主干 (Backbone) 给小学习率 (0.1倍)，让其缓慢适应检测任务，保护 ImageNet 预训练知识
+            'absolute_pos_embed': dict(decay_mult=0.),
             'backbone': dict(lr_mult=0.1),
-            
-            # 3. Neck 是随机初始化的“新手”，Encoder 是需要“再教育”的“熟手”
-            # 给标准学习率 (1.0倍) 让它们全速对齐特征
-            'neck': dict(lr_mult=1.0),
-            'encoder': dict(lr_mult=1.0),
-            
-            # 4. Decoder 和 Head 已经有检测经验，正常训练即可
-            'decoder': dict(lr_mult=1.0),
-            'bbox_head': dict(lr_mult=1.0),
+            'language_model': dict(lr_mult=0.1),
         }))
 
 # -----------------------------------------------------------------------------
@@ -106,8 +88,8 @@ test_pipeline = [
 ]
 
 train_dataloader = dict(
-    batch_size=6,  # 每张卡 4 个样本
-    num_workers=12
+    batch_size=4,  # 每张卡 4 个样本
+    num_workers=8
 )
 
 dataset_type = 'LVISV1Dataset'
